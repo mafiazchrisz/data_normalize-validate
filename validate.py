@@ -8,7 +8,7 @@ REQUIRED_FIELDS = {
     "total_amount": {"type": (int, float, str)},
     "subtotal": {"type": (int, float, str)},
     "tax": {"type": (int, float, str)},
-    "line_items": {"type": list},  # Expecting non-empty list of items
+    "line_items": {"type": list},  # Expecting list of dicts with "amount"
 }
 
 PLACEHOLDER_VALUES = ["", "N/A", "null", None]
@@ -41,22 +41,18 @@ def validate_invoice_data(invoice: Dict[str, Any]) -> Dict[str, Any]:
         if value in PLACEHOLDER_VALUES:
             result["status"] = "fail"
             result["invalid_fields"][field] = "Field is empty or contains placeholder"
-
         elif field not in invoice:
             result["status"] = "fail"
             result["invalid_fields"][field] = "Missing required field"
-
         elif not isinstance(value, rules["type"]):
             result["status"] = "fail"
             result["invalid_fields"][field] = f"Invalid type. Expected {rules['type']}, got {type(value)}"
-
         elif field == "invoice_date":
             if not isinstance(value, str) or not is_valid_date_format(value):
                 result["status"] = "fail"
                 result["invalid_fields"][field] = "Invalid date format. Expected YYYY-MM-DD"
             else:
                 result["valid_fields"].append(field)
-
         elif field == "line_items":
             if not isinstance(value, list) or len(value) == 0:
                 result["status"] = "fail"
@@ -78,13 +74,26 @@ def validate_invoice_data(invoice: Dict[str, Any]) -> Dict[str, Any]:
             result["logical_checks"].append("total_amount does not equal subtotal + tax")
 
     # Check line_items sum
-    if isinstance(invoice.get("line_items"), list) and invoice["line_items"]:
+    if isinstance(invoice.get("line_items"), list):
         line_total = sum(parse_float(item.get("amount", 0)) or 0 for item in invoice["line_items"])
         if subtotal is not None and abs(line_total - subtotal) > 0.01:
             result["status"] = "fail"
             result["logical_checks"].append("Line item sum does not match subtotal")
-
     return result
+
+"""     # Check date logic
+    start = invoice.get("period_start")
+    end = invoice.get("period_end")
+    try:
+        if start and end:
+            d1 = datetime.strptime(start, "%Y-%m-%d")
+            d2 = datetime.strptime(end, "%Y-%m-%d")
+            if d1 > d2:
+                result["status"] = "fail"
+                result["logical_checks"].append("period_start is after period_end")
+    except Exception as e:
+        result["logical_checks"].append("Date format error")
+     """
 
 def print_validation_report(data: List[Dict[str, Any]]) -> None:
     for idx, invoice in enumerate(data):
@@ -120,11 +129,27 @@ if __name__ == "__main__":
         },
         {
             "invoice_number": "INV-002",
-            "invoice_date": "2025-05-15",
+            "invoice_date": "16/05/2025",
             "total_amount": 200.0,
             "subtotal": 150.0,
             "tax": 20.0,
             "line_items": [{"amount": 100.0}, {"amount": 40.0}]
+        },
+        {
+        "invoice_number": "INV-003",
+        "invoice_date": "2025-13-01",  # invalid month
+        "total_amount": 90.0,
+        "subtotal": 90.0,
+        "tax": 0.0,
+        "line_items": [{"amount": 90.0}]
+        },
+        {
+        "invoice_number": "INV-004",
+        "invoice_date": "2025-02-30",  # invalid day (Feb 30)
+        "total_amount": 70.0,
+        "subtotal": 70.0,
+        "tax": 0.0,
+        "line_items": [{"amount": 70.0}]
         },
         {
             "invoice_number": "",
