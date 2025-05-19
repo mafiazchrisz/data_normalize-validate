@@ -1,0 +1,27 @@
+{
+  "document_type": "expense_report",
+  "report_id": "string",
+  "employee_name": "string",
+  "employee_id": "string",
+  "department": "string",
+  "report_date": "date",
+  "period_start": "date",
+  "period_end": "date",
+  "expense_items": [
+    {
+      "date": "date",
+      "category": "string",
+      "description": "string",
+      "quantity": "int",
+      "unit": "string",
+      "amount": "float"
+    }
+  ],
+  "total_amount": "float",
+  "vat_amount": "float",
+  "total_after_vat": "float",
+  "currency": "string",
+  "approver_name": "string",
+  "approval_status": "string",
+  "remarks": "string"
+}

@@ -1,0 +1,30 @@
+{
+  "document_type": "invoice",
+  "invoice_number": "INV-2025-0001",
+  "invoice_date": "2025-05-01",
+  "vendor_name": "ABC Supplies Co., Ltd.",
+  "vendor_address": "123 Sukhumvit Road, Bangkok, Thailand",
+  "vendor_tax_id": "0105525012345",
+  "buyer_name": "XYZ Corporation Ltd.",
+  "purchase_order_number": "PO-2025-7788",
+  "due_date": "2025-05-31",
+  "line_items": [
+    {
+      "description": "Product A",
+      "quantity": 10,
+      "unit_price": 5.0,
+      "line_total": 50.0
+    },
+    {
+      "description": "Product B",
+      "quantity": 2,
+      "unit_price": 20.0,
+      "line_total": 40.0
+    }
+  ],
+  "subtotal_amount": 90.0,
+  "tax_amount": 6.3,
+  "total_amount": 96.3,
+  "currency": "THB",
+  "remarks": null
+}

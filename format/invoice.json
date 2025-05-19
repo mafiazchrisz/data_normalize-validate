@@ -1,0 +1,35 @@
+{
+  "document_type": "invoice",
+  "invoice_number": "string",
+  "invoice_date": "date",
+  "due_date": "date",
+  "purchase_order_number": "string",
+  "payment_terms": "string",
+  "vendor_information": {
+    "name": "string",
+    "tax_id": "string",
+    "address": "string"
+  },
+  "buyer_information": {
+    "name": "string",
+    "tax_id": "string",
+    "address": "string"
+  },
+  "item_details": [
+    {
+      "description": "string",
+      "quantity": "float",
+      "unit": "string",
+      "unit_price": "float",
+      "discount": "float",
+      "amount": "float"
+    }
+  ],
+  "subtotal_amount": "float",
+  "total_discount": "float",
+  "vat_amount": "float",
+  "total_amount": "float",
+  "amount_in_words": "string",
+  "currency": "string",
+  "remarks": "string"
+}
