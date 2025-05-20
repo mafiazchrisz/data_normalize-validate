@@ -1,3 +1,5 @@
+import json
+import os
 from typing import List, Dict, Any
 from datetime import datetime
 
@@ -18,6 +20,19 @@ def parse_float(val):
         return float(val)
     except (ValueError, TypeError):
         return None
+
+def load_json_file(file_path: str) -> List[Dict[str, Any]]:
+    if not os.path.isfile(file_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
+    
+    with open(file_path, 'r', encoding='utf-8') as f:
+        try:
+            data = json.load(f)
+            if not isinstance(data, list):
+                raise ValueError("JSON file must contain a list of invoices.")
+            return data
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON format: {e}")    
 
 def is_valid_date_format(date_str: str) -> bool:
     try:
@@ -116,49 +131,10 @@ def print_validation_report(data: List[Dict[str, Any]]) -> None:
             for issue in result["logical_checks"]:
                 print(f"  - {issue}")
 
-# Example usage
 if __name__ == "__main__":
-    sample_data = [
-        {
-            "invoice_number": "INV-001",
-            "invoice_date": "2025-05-16",
-            "total_amount": 110.0,
-            "subtotal": 100.0,
-            "tax": 10.0,
-            "line_items": [{"amount": 60.0}, {"amount": 40.0}]
-        },
-        {
-            "invoice_number": "INV-002",
-            "invoice_date": "16/05/2025",
-            "total_amount": 200.0,
-            "subtotal": 150.0,
-            "tax": 20.0,
-            "line_items": [{"amount": 100.0}, {"amount": 40.0}]
-        },
-        {
-        "invoice_number": "INV-003",
-        "invoice_date": "2025-13-01",  # invalid month
-        "total_amount": 90.0,
-        "subtotal": 90.0,
-        "tax": 0.0,
-        "line_items": [{"amount": 90.0}]
-        },
-        {
-        "invoice_number": "INV-004",
-        "invoice_date": "2025-02-30",  # invalid day (Feb 30)
-        "total_amount": 70.0,
-        "subtotal": 70.0,
-        "tax": 0.0,
-        "line_items": [{"amount": 70.0}]
-        },
-        {
-            "invoice_number": "",
-            "invoice_date": "N/A",
-            "total_amount": "N/A",
-            "subtotal": "N/A",
-            "tax": "",
-            "line_items": []
-        }
-    ]
-
-    print_validation_report(sample_data)
+    file_path = (r"C:\Users\mafia\Desktop\OCR\samples\invoice_data.json")
+    try:
+        invoices = load_json_file(file_path)
+        print_validation_report(invoices)
+    except Exception as e:
+        print(f"Error: {e}")

@@ -1,8 +1,9 @@
+import os
+import json
 import re
 from datetime import datetime
-import json
 
-# === Value Normalization Function ===
+# === Normalize value based on key ===
 def normalize_value(key, value):
     if not isinstance(value, str):
         value = str(value)
@@ -30,58 +31,42 @@ def normalize_values_only(data):
         normalized[key] = normalize_value(key, value)
     return normalized
 
-# === Compare normalized values by same keys ===
-def compare_by_keys(ocr_json, reference_json):
-    ocr_norm = normalize_values_only(ocr_json)
-    ref_norm = normalize_values_only(reference_json)
-
+# === Compare raw input with normalized ===
+def compare_after_normalization(raw_json):
+    normalized = normalize_values_only(raw_json)
     diffs = {}
-    all_keys = set(ref_norm.keys()) | set(ocr_norm.keys())
-    for key in all_keys:
-        ocr_val = ocr_norm.get(key)
-        ref_val = ref_norm.get(key)
-        if ocr_val != ref_val:
+    for key in raw_json.keys():
+        raw_val = raw_json[key]
+        norm_val = normalized.get(key)
+        if normalize_value(key, raw_val) != norm_val:
             diffs[key] = {
-                "ocr": ocr_val,
-                "reference": ref_val
+                "raw": raw_val,
+                "normalized": norm_val
             }
+    return normalized, diffs
 
-    return diffs, ocr_norm, ref_norm
+# === Process all JSON files in a folder ===
+def process_json_folder(folder_path):
+    for filename in os.listdir(folder_path):
+        if filename.endswith(".json"):
+            file_path = os.path.join(folder_path, filename)
+            with open(file_path, "r", encoding="utf-8") as f:
+                try:
+                    raw_json = json.load(f)
+                except json.JSONDecodeError:
+                    print(f"❌ Skipping invalid JSON: {filename}")
+                    continue
 
-# === Example Input ===
-ocr_json = {
-    "Company Name": " Acme Corp. ",
-    "Total": "1,234.56",
-    "Date": "09/05/2025",
-    "Tax ID": "123-456-789"
-}
+                normalized, diffs = compare_after_normalization(raw_json)
 
-reference_json = {
-    "Company Name": "Acme Corp.",
-    "Total": "1234.56",
-    "Date": "2025-05-09",
-    "Tax ID": "123-456-789"
-}
+                print(f"\n📄 File: {filename}")
+                print("🔍 Raw OCR JSON:")
+                print(json.dumps(raw_json, indent=2))
 
-# === Run Comparison ===
-diffs, ocr_norm, ref_norm = compare_by_keys(ocr_json, reference_json)
+                print("\n✅ Normalized JSON:")
+                print(json.dumps(normalized, indent=2))
 
-# === Output ===
-print("🔍 OCR JSON (raw input):")
-print(json.dumps(ocr_json, indent=2))
-
-print("\n📄 Reference JSON (raw input):")
-print(json.dumps(reference_json, indent=2))
-
-print("\n✅ Normalized OCR JSON:")
-print(json.dumps(ocr_norm, indent=2))
-
-print("\n✅ Normalized Reference JSON:")
-print(json.dumps(ref_norm, indent=2))
-
-print("\n🧾 Differences After Normalization:")
-if not diffs:
-    print("✔ No differences found.")
-else:
-    for key, val in diffs.items():
-        print(f" - {key}: OCR='{val['ocr']}' | Reference='{val['reference']}'")
+# === Example Usage ===
+if __name__ == "__main__":
+    folder_path = (r"C:\Users\mafia\Desktop\OCR\sample-normalize")  # replace with your folder path
+    process_json_folder(folder_path)
