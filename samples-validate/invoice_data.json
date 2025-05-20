@@ -1,0 +1,42 @@
+[
+        {
+            "invoice_number": "INV-001",
+            "invoice_date": "2025-05-16",
+            "total_amount": 110.0,
+            "subtotal": 100.0,
+            "tax": 10.0,
+            "line_items": [{"amount": 60.0}, {"amount": 40.0}]
+        },
+        {
+            "invoice_number": "INV-002",
+            "invoice_date": "16/05/2025",
+            "total_amount": 200.0,
+            "subtotal": 150.0,
+            "tax": 20.0,
+            "line_items": [{"amount": 100.0}, {"amount": 40.0}]
+        },
+        {
+        "invoice_number": "INV-003",
+        "invoice_date": "2025-13-01",
+        "total_amount": 90.0,
+        "subtotal": 90.0,
+        "tax": 0.0,
+        "line_items": [{"amount": 90.0}]
+        },
+        {
+        "invoice_number": "INV-004",
+        "invoice_date": "2025-02-30",
+        "total_amount": 70.0,
+        "subtotal": 70.0,
+        "tax": 0.0,
+        "line_items": [{"amount": 70.0}]
+        },
+        {
+            "invoice_number": "",
+            "invoice_date": "N/A",
+            "total_amount": "N/A",
+            "subtotal": "N/A",
+            "tax": "",
+            "line_items": []
+        }
+    ]
