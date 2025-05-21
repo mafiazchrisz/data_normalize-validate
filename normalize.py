@@ -4,41 +4,38 @@ import re
 from datetime import datetime
 
 # === Normalize value based on key ===
-def normalize_value(key, value):
-    if not isinstance(value, str):
-        value = str(value)
+def normalize(data, key=None):
+    def normalize_single_value(key, value):
+        if not isinstance(value, str):
+            value = str(value)
+        value = value.strip()
+        if key and key.lower() == "date":
+            for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y", "%Y/%m/%d"):
+                try:
+                    return datetime.strptime(value, fmt).strftime("%Y-%m-%d")
+                except ValueError:
+                    continue
+        if key and key.lower() == "total":
+            match = re.findall(r"[\d.,]+", value)
+            if match:
+                return match[0].replace(",", "")
+        return value
 
-    value = value.strip()
-
-    if key.lower() == "date":
-        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y", "%Y/%m/%d"):
-            try:
-                return datetime.strptime(value, fmt).strftime("%Y-%m-%d")
-            except ValueError:
-                continue
-
-    if key.lower() == "total":
-        match = re.findall(r"[\d.,]+", value)
-        if match:
-            return match[0].replace(",", "")
-
-    return value
-
-# === Normalize only values ===
-def normalize_values_only(data):
-    normalized = {}
-    for key, value in data.items():
-        normalized[key] = normalize_value(key, value)
-    return normalized
+    if isinstance(data, dict):
+        return {k: normalize_single_value(k, v) for k, v in data.items()}
+    elif key is not None:
+        return normalize_single_value(key, data)
+    else:
+        raise ValueError("No data in this JSON")
 
 # === Compare raw input with normalized ===
 def compare_after_normalization(raw_json):
-    normalized = normalize_values_only(raw_json)
+    normalized = normalize(raw_json)
     diffs = {}
     for key in raw_json.keys():
         raw_val = raw_json[key]
         norm_val = normalized.get(key)
-        if normalize_value(key, raw_val) != norm_val:
+        if normalize(raw_val, key) != norm_val:
             diffs[key] = {
                 "raw": raw_val,
                 "normalized": norm_val
@@ -54,19 +51,18 @@ def process_json_folder(folder_path):
                 try:
                     raw_json = json.load(f)
                 except json.JSONDecodeError:
-                    print(f"❌ Skipping invalid JSON: {filename}")
+                    print(f"Skipping invalid JSON: {filename}")
                     continue
 
-                normalized, diffs = compare_after_normalization(raw_json)
+                normalized, diff = compare_after_normalization(raw_json)
 
-                print(f"\n📄 File: {filename}")
-                print("🔍 Raw OCR JSON:")
+                print(f"\nFile: {filename}")
+                print("Raw JSON:")
                 print(json.dumps(raw_json, indent=2))
 
-                print("\n✅ Normalized JSON:")
+                print("\nNormalized JSON:")
                 print(json.dumps(normalized, indent=2))
 
-# === Example Usage ===
 if __name__ == "__main__":
-    folder_path = (r"C:\Users\mafia\Desktop\OCR\sample-normalize")  # replace with your folder path
+    folder_path = (r"C:\Users\wasin.j\Desktop\data_normalize-validate\sample-normalize")  # replace with folder path
     process_json_folder(folder_path)
