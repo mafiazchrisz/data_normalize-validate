@@ -5,12 +5,26 @@ from datetime import datetime
 
 # Configuration
 REQUIRED_FIELDS = {
+    "document_type": {"type": str},
     "invoice_number": {"type": str},
     "invoice_date": {"type": str},
-    "total_amount": {"type": (int, float, str)},
-    "subtotal": {"type": (int, float, str)},
-    "tax": {"type": (int, float, str)},
-    "line_items": {"type": list},  # Expecting list of dicts with "amount"
+    "vendor_information": {"type": dict},
+    "buyer_information": {"type": dict},
+    "item_details": {"type": list},
+    "total_amount": {"type": float},
+}
+
+# Optional fields from invoice.json
+OPTIONAL_FIELDS = {
+    "due_date": {"type": str},
+    "purchase_order_number": {"type": str},
+    "payment_terms": {"type": str},
+    "subtotal_amount": {"type": float},
+    "total_discount": {"type": float},
+    "vat_amount": {"type": float},
+    "amount_in_words": {"type": str},
+    "currency": {"type": str},
+    "remarks": {"type": str},
 }
 
 PLACEHOLDER_VALUES = ["", "N/A", "null", None]
@@ -44,7 +58,6 @@ def is_valid_date_format(date_str: str) -> bool:
 def validate_invoice_data(invoice: Dict[str, Any]) -> Dict[str, Any]:
     result = {
         "status": "pass",
-        "valid_fields": [],
         "invalid_fields": {},
         "logical_checks": []
     }
@@ -66,75 +79,66 @@ def validate_invoice_data(invoice: Dict[str, Any]) -> Dict[str, Any]:
             if not isinstance(value, str) or not is_valid_date_format(value):
                 result["status"] = "fail"
                 result["invalid_fields"][field] = "Invalid date format. Expected YYYY-MM-DD"
-            else:
-                result["valid_fields"].append(field)
-        elif field == "line_items":
+        elif field == "item_details":
             if not isinstance(value, list) or len(value) == 0:
                 result["status"] = "fail"
-                result["invalid_fields"][field] = "line_items must be a non-empty list"
-            else:
-                result["valid_fields"].append(field)
-        else:
-            result["valid_fields"].append(field)
+                result["invalid_fields"][field] = "item_details must be a non-empty list"
 
-    # Logical consistency checks
-    subtotal = parse_float(invoice.get("subtotal"))
-    tax = parse_float(invoice.get("tax"))
-    total = parse_float(invoice.get("total_amount"))
-
-    if subtotal is not None and tax is not None and total is not None:
-        expected_total = subtotal + tax
-        if abs(total - expected_total) > 0.01:
-            result["status"] = "fail"
-            result["logical_checks"].append("total_amount does not equal subtotal + tax")
-
-    # Check line_items sum
-    if isinstance(invoice.get("line_items"), list):
-        line_total = sum(parse_float(item.get("amount", 0)) or 0 for item in invoice["line_items"])
-        if subtotal is not None and abs(line_total - subtotal) > 0.01:
-            result["status"] = "fail"
-            result["logical_checks"].append("Line item sum does not match subtotal")
-    return result
-
-"""     # Check date logic
-    start = invoice.get("period_start")
-    end = invoice.get("period_end")
-    try:
-        if start and end:
-            d1 = datetime.strptime(start, "%Y-%m-%d")
-            d2 = datetime.strptime(end, "%Y-%m-%d")
-            if d1 > d2:
+    # Optional fields: check type if present
+    for field, rules in OPTIONAL_FIELDS.items():
+        if field in invoice and invoice[field] not in PLACEHOLDER_VALUES:
+            value = invoice[field]
+            if not isinstance(value, rules["type"]):
                 result["status"] = "fail"
-                result["logical_checks"].append("period_start is after period_end")
-    except Exception as e:
-        result["logical_checks"].append("Date format error")
-     """
+                result["invalid_fields"][field] = f"Invalid type for optional field. Expected {rules['type']}, got {type(value)}"
+
+    # Logical consistency checks (example: total_amount should be sum of item_details amounts)
+    total = parse_float(invoice.get("total_amount"))
+    if isinstance(invoice.get("item_details"), list):
+        item_total = sum(parse_float(item.get("amount", 0)) or 0 for item in invoice["item_details"])
+        if total is not None and abs(item_total - total) > 0.01:
+            result["status"] = "fail"
+            result["logical_checks"].append("Sum of item_details amounts does not match total_amount")
+    return result
 
 def print_validation_report(data: List[Dict[str, Any]]) -> None:
     for idx, invoice in enumerate(data):
-        print(f"\n--- Invoice #{idx + 1} Validation ---")
+        #print(f"\n--- Invoice #{idx + 1} Validation ---")
         result = validate_invoice_data(invoice)
         print(f"Validation Status: {result['status'].upper()}")
 
-        if result["valid_fields"]:
-            print("Valid Fields:")
-            for field in result["valid_fields"]:
-                print(f"  - {field}: {invoice.get(field)}")
+        if result["status"] == "fail":
+            if result["invalid_fields"]:
+                print("Reasons:")
+                for field, error in result["invalid_fields"].items():
+                    print(f"  - {field}: {error}")
+            if result["logical_checks"]:
+                for issue in result["logical_checks"]:
+                    print(f"  - {issue}")
 
-        if result["invalid_fields"]:
-            print("Invalid Fields:")
-            for field, error in result["invalid_fields"].items():
-                print(f"  - {field}: {error}")
-
-        if result["logical_checks"]:
-            print("Logical Check Issues:")
-            for issue in result["logical_checks"]:
-                print(f"  - {issue}")
+def process_json_folder(folder_path: str) -> None:
+    for filename in os.listdir(folder_path):
+        if filename.endswith(".json"):
+            file_path = os.path.join(folder_path, filename)
+            with open(file_path, "r", encoding="utf-8") as f:
+                try:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        data = [data]
+                    elif not isinstance(data, list):
+                        print(f"File: {filename}")
+                        print("Error: JSON file must contain an invoice object or a list of invoices.")
+                        continue
+                except json.JSONDecodeError as e:
+                    print(f"File: {filename}")
+                    print(f"Error: Invalid JSON format: {e}")
+                    continue
+                print(f"\nFile: {filename}")
+                print_validation_report(data)
 
 if __name__ == "__main__":
-    file_path = (r"C:\Users\mafia\Desktop\OCR\samples\invoice_data.json")
+    folder_path = (r"C:\Users\wasin.j\Desktop\data_normalize-validate\samples-validate")  # replace with your folder path
     try:
-        invoices = load_json_file(file_path)
-        print_validation_report(invoices)
+        process_json_folder(folder_path)
     except Exception as e:
         print(f"Error: {e}")
