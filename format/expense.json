@@ -12,14 +12,13 @@
       "date": "date",
       "category": "string",
       "description": "string",
-      "quantity": "int",
-      "unit": "string",
+      "quantity": "float",
       "amount": "float"
     }
   ],
-  "total_amount": "float",
+  "subtotal_amount": "float",
   "vat_amount": "float",
-  "total_after_vat": "float",
+  "total_amount": "float",
   "currency": "string",
   "approver_name": "string",
   "approval_status": "string",
