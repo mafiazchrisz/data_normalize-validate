@@ -4,7 +4,7 @@ import re
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
 
-months = {
+MONTHS = {
     "มกราคม": "01", "กุมภาพันธ์": "02", "มีนาคม": "03", "เมษายน": "04",
     "พฤษภาคม": "05", "มิถุนายน": "06", "กรกฎาคม": "07", "สิงหาคม": "08",
     "กันยายน": "09", "ตุลาคม": "10", "พฤศจิกายน": "11", "ธันวาคม": "12",
@@ -13,75 +13,80 @@ months = {
     "ก.ย.": "09", "ต.ค.": "10", "พ.ย.": "11", "ธ.ค.": "12",
 }
 
-currency_symbol = {
+CURRENCY_SYMBOL = {
     'THB': 'THB', '฿': 'THB', 'บาท': 'THB'
 }
 
-invoice_num_fields = [
+INVOICE_NUM_FIELDS = [
     "quantity", "unit_price", "discount", "amount",
     "subtotal_amount", "total_discount", "vat_amount", "total_amount"
 ]
 
-invoice_date_fields = [
+INVOICE_DATE_FIELDS = [
     "invoice_date", "due_date"
 ]
 
-expense_num_fields = [
+EXPENSE_NUM_FIELDS = [
     "quantity", "amount", "subtotal_amount", "vat_amount", "total_amount"
 ]
 
-expense_date_fields = [
+EXPENSE_DATE_FIELDS = [
     "report_date", "period_start", "period_end"
 ]
 
+# --- Utility Functions ---
+
 def trim_strings(obj: Any) -> Any:
+    """Recursively trims whitespace from strings in dicts/lists."""
     if isinstance(obj, dict):
         return {k: trim_strings(v) for k, v in obj.items()}
     elif isinstance(obj, list):
         return [trim_strings(i) for i in obj]
     elif isinstance(obj, str):
         return obj.strip()
-    else:
-        return obj
+    return obj
 
 def normalize_date(value: str) -> Optional[str]:
+    """Normalizes date strings to YYYY-MM-DD format, supports Thai months."""
     value = value.strip()
-    if value == "":
+    if not value:
         return None
     for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y", "%Y/%m/%d"):
         try:
             return datetime.strptime(value, fmt).strftime("%Y-%m-%d")
         except Exception:
             continue
-
     m = re.match(r"(\d{1,2})\s+([ก-๙\.]+)\s+(\d{4})", value)
     if m:
         day, thai_month, year = m.groups()
-        month = months.get(thai_month)
+        month = MONTHS.get(thai_month)
         year = int(year)
         if year > 2500:
             year -= 543
-        return f"{year:04d}-{month}-{int(day):02d}"
+        if month:
+            return f"{year:04d}-{month}-{int(day):02d}"
     return value
 
 def set_null(data: Dict[str, Any], optional_fields: List[str]) -> None:
+    """Sets empty string or None fields to None for given keys."""
     for field in optional_fields:
         if field in data and (data[field] == "" or data[field] is None):
             data[field] = None
 
 def normalize_numeric(value: Any) -> Tuple[Optional[float], Optional[str]]:
+    """Extracts numeric value and currency code from a string."""
     if value is None:
         return None, None
     if isinstance(value, (int, float)):
         return float(value), None
     value = str(value).strip()
-    if value == "":
+    if not value:
         return None, None
     m = re.match(r"([\d,\.]+)\s*([A-Za-zก-๙$€฿]*)", value)
     if m:
         num, currency = m.groups()
         num = num.replace(",", "")
-        currency_code = currency_symbol.get(currency, currency) if currency else None
+        currency_code = CURRENCY_SYMBOL.get(currency, currency) if currency else None
         try:
             num = float(num)
         except Exception:
@@ -92,13 +97,15 @@ def normalize_numeric(value: Any) -> Tuple[Optional[float], Optional[str]]:
     except Exception:
         return None, None
 
+# --- Normalization Functions ---
+
 def normalize_invoice_item(item: Dict[str, Any], currency_holder: List[Optional[str]]) -> Dict[str, Any]:
     norm_item = {}
     for k, v in item.items():
         if v is None or (isinstance(v, str) and v.strip() == ""):
             norm_item[k] = None
             continue
-        if k in invoice_num_fields:
+        if k in INVOICE_NUM_FIELDS:
             num, currency = normalize_numeric(v)
             norm_item[k] = num
             if currency and not currency_holder[0]:
@@ -115,7 +122,7 @@ def normalize_expense_item(item: Dict[str, Any], currency_holder: List[Optional[
         if v is None or (isinstance(v, str) and v.strip() == ""):
             norm_item[k] = None
             continue
-        if k in expense_num_fields:
+        if k in EXPENSE_NUM_FIELDS:
             num, currency = normalize_numeric(v)
             norm_item[k] = num
             if currency and not currency_holder[0]:
@@ -130,16 +137,15 @@ def normalize_invoice(data: Dict[str, Any]) -> Dict[str, Any]:
     normalized: Dict[str, Any] = {}
     currency_holder = [None]
     data = trim_strings(data)
-    # Normalize fields
     for k, v in data.items():
         if k == "item_details" and isinstance(v, list):
             normalized[k] = [normalize_invoice_item(item, currency_holder) for item in v]
-        elif k in invoice_num_fields:
+        elif k in INVOICE_NUM_FIELDS:
             num, currency = normalize_numeric(v)
             normalized[k] = num
             if currency and not currency_holder[0]:
                 currency_holder[0] = currency
-        elif k in invoice_date_fields:
+        elif k in INVOICE_DATE_FIELDS:
             normalized[k] = normalize_date(str(v)) if v else None
         elif isinstance(v, dict):
             normalized[k] = trim_strings(v)
@@ -148,18 +154,15 @@ def normalize_invoice(data: Dict[str, Any]) -> Dict[str, Any]:
         else:
             normalized[k] = v
 
-    # Set missing optional fields to null
     optional_fields = [
         "due_date", "purchase_order_number", "payment_terms", "subtotal_amount",
         "total_discount", "vat_amount", "amount_in_words", "currency", "remarks"
     ]
     set_null(normalized, optional_fields)
 
-    # Recalculate subtotal_amount from item_details if present
     if "item_details" in normalized and isinstance(normalized["item_details"], list):
         subtotal = sum(item.get("amount", 0) or 0 for item in normalized["item_details"])
         normalized["subtotal_amount"] = subtotal
-        # If vat_amount exists, recalc total_amount
         tax = normalized.get("vat_amount")
         if tax is not None:
             try:
@@ -167,7 +170,6 @@ def normalize_invoice(data: Dict[str, Any]) -> Dict[str, Any]:
             except Exception:
                 pass
 
-    # Set currency if found in any field
     if not normalized.get("currency") and currency_holder[0]:
         normalized["currency"] = currency_holder[0]
 
@@ -185,16 +187,15 @@ def normalize_expense(data: Dict[str, Any]) -> Dict[str, Any]:
     normalized: Dict[str, Any] = {}
     currency_holder = [None]
     data = trim_strings(data)
-    # Normalize fields
     for k, v in data.items():
         if k == "expense_items" and isinstance(v, list):
             normalized[k] = [normalize_expense_item(item, currency_holder) for item in v]
-        elif k in expense_num_fields:
+        elif k in EXPENSE_NUM_FIELDS:
             num, currency = normalize_numeric(v)
             normalized[k] = num
             if currency and not currency_holder[0]:
                 currency_holder[0] = currency
-        elif k in expense_date_fields:
+        elif k in EXPENSE_DATE_FIELDS:
             normalized[k] = normalize_date(str(v)) if v else None
         elif isinstance(v, dict):
             normalized[k] = trim_strings(v)
@@ -203,18 +204,15 @@ def normalize_expense(data: Dict[str, Any]) -> Dict[str, Any]:
         else:
             normalized[k] = v
 
-    # Set missing optional fields to null
     optional_fields = [
         "report_id", "employee_id", "department", "subtotal_amount", "vat_amount",
         "approval_name", "approval_status", "currency", "remarks"
     ]
     set_null(normalized, optional_fields)
 
-    # Recalculate subtotal_amount from expense_items if present
     if "expense_items" in normalized and isinstance(normalized["expense_items"], list):
         subtotal = sum(item.get("amount", 0) or 0 for item in normalized["expense_items"])
         normalized["subtotal_amount"] = subtotal
-        # If vat_amount exists, recalc total_amount
         tax = normalized.get("vat_amount")
         if tax is not None:
             try:
@@ -222,7 +220,6 @@ def normalize_expense(data: Dict[str, Any]) -> Dict[str, Any]:
             except Exception:
                 pass
 
-    # Set currency if found in any field
     if not normalized.get("currency") and currency_holder[0]:
         normalized["currency"] = currency_holder[0]
 
@@ -240,41 +237,10 @@ def normalize_by_document_type(data: Dict[str, Any]) -> Dict[str, Any]:
     elif doc_type == "expense_report":
         return normalize_expense(data)
     else:
-        # Fallback to generic normalization if unknown type
         return data
 
-def compare_after_normalization(raw_json: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    normalized = normalize_by_document_type(raw_json)
-    diffs: Dict[str, Any] = {}
-    for key in raw_json.keys():
-        raw_val = raw_json[key]
-        norm_val = normalized.get(key)
-        # Use normalize_numeric for numeric fields to compare
-        if key in invoice_num_fields + expense_num_fields:
-            raw_num, _ = normalize_numeric(raw_val)
-            if raw_num != norm_val:
-                diffs[key] = {
-                    "raw": raw_val,
-                    "normalized": norm_val
-                }
-        elif key in invoice_date_fields + expense_date_fields:
-            raw_date = normalize_date(str(raw_val)) if raw_val else None
-            if raw_date != norm_val:
-                diffs[key] = {
-                    "raw": raw_val,
-                    "normalized": norm_val
-                }
-        else:
-            if isinstance(raw_val, str):
-                raw_val = raw_val.strip()
-            if raw_val != norm_val:
-                diffs[key] = {
-                    "raw": raw_val,
-                    "normalized": norm_val
-                }
-    return normalized, diffs
-
-def process_json_file(file_path: str) -> None:
+def load_json(file_path: str) -> None:
+    """Reads a JSON file, normalizes it, and prints results."""
     if not os.path.isfile(file_path):
         print(f"File not found: {file_path}")
         return
@@ -295,5 +261,5 @@ def process_json_file(file_path: str) -> None:
         print(json.dumps(normalized, indent=2, ensure_ascii=False))
 
 if __name__ == "__main__":
-    file_path = r"C:\Users\wasin.j\Desktop\data_normalize-validate\Test_normalize\expense_test.json"  # replace with your file path
-    process_json_file(file_path)
+    file_path = r"C:\Users\wasin.j\Desktop\data_normalize-validate\Test_normalize\expense_test.json"
+    load_json(file_path)
